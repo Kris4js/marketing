@@ -13,6 +13,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Environment variables
+.env
+
 # files
 .vscode
 email_assistant
