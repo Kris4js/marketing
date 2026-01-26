@@ -1,0 +1,20 @@
+{
+  "tool_name": "web_search",
+  "tool_description": "What is the capital of France? from 2023-01-01 to 2023-12-31",
+  "args": {
+    "query": "What is the capital of France?",
+    "start_date": "2023-01-01",
+    "end_date": "2023-12-31"
+  },
+  "timestamp": "2026-01-26T09:17:42.106035+00:00",
+  "task_id": 1,
+  "query_id": "query_123",
+  "source_urls": null,
+  "result": {
+    "data": "The capital of France is Paris.",
+    "source_urls": [
+      "https://en.wikipedia.org/wiki/Paris",
+      "https://www.britannica.com/place/Paris"
+    ]
+  }
+}
