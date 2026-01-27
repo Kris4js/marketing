@@ -4,12 +4,13 @@ from pathlib import Path
 from typing import Optional, override, TypeAlias
 from pydantic import BaseModel, Field
 
-from ..state import Understanding, UnderstandInput
-from ..prompts import get_understand_system_prompt, build_understand_user_prompt
-from ...model.llm import llm_call_with_structured_output
-from .base import Phase, EntitySchema
+from src.agent.state import Understanding, UnderstandInput
+from src.agent.prompts import get_understand_system_prompt, build_understand_user_prompt
+from src.model.llm import llm_call_with_structured_output
+from src.agent.phases.base import Phase, EntitySchema
 
 
+# Load configuration
 _config_file = Path(__file__).parent.parent.parent / "config.ini"
 _config = configparser.ConfigParser()
 _config.read(_config_file)
@@ -50,10 +51,16 @@ class UnderstandPhase(Phase):
             Understanding: _description_
         """
         # Build conversation context if available
-        # TODO 先实现 Memory 逻辑，然后再实现添加历史对话
         conversation_context = None
-        if input.conversation_history:
-            ...
+        if input.conversation_history and input.conversation_history.has_messages():
+            relevant_messages = input.conversation_history.select_relevant_messages(
+                input.query
+            )
+            if len(relevant_messages) > 0:
+                # TODO: Improve formatting for planning
+                conversation_context = input.conversation_history.format_for_planning(
+                    relevant_messages
+                )
 
         # Build the prompt
         systemPrompt = get_understand_system_prompt()

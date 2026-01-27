@@ -34,7 +34,7 @@ class TaskType(Enum):
 # ======================================================================
 
 
-class EntityType(Enum): 
+class EntityType(Enum):
     PERSON = "person"
     ORGANIZATION = "organization"
     LOCATION = "location"
@@ -74,6 +74,24 @@ class ToolCall:
 
 
 class ToolCallStatus(ToolCall):
+    """工具调用状态对象
+
+    Attributes:
+        tool (str): 工具名称
+
+        args (dict[str, Any]): 工具参数
+
+        status (TaskStatus): 工具调用状态
+
+        ```python
+        class TaskStatus(Enum):
+            PENDING = "pending"
+            IN_PROGRESS = "in_progress"
+            COMPLETED = "completed"
+            FAILED = "failed"
+        ```
+    """
+
     status: TaskStatus
 
 

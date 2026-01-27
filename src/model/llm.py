@@ -10,6 +10,7 @@ from langchain_core.messages import (
     BaseMessage,
 )
 
+
 load_dotenv()
 
 
@@ -39,6 +40,7 @@ async def llm_call(
     prompt: str,
     system_prompt: Optional[str] = None,
     model: str = DEFAULT_MODEL,
+    tools: Optional[list[str]] = None,
 ) -> str:
     """
     Makes a call to the chat LLM with the given prompt.
@@ -59,7 +61,11 @@ async def llm_call(
     # 2. 处理 User Prompt
     messages.append(HumanMessage(content=prompt))
 
-    # 3. 调用 LLM
+    # 3. 绑定 Tools
+    if tools is not None:
+        llm = llm.bind_tools(tools)
+
+    # 4. 调用 LLM
     response: AIMessage = await llm.ainvoke(messages)
 
     return response.content
@@ -91,9 +97,9 @@ async def llm_call_with_structured_output(
     # 2. 处理 User Prompt
     messages.append(HumanMessage(content=prompt))
 
-    # 3. 声明 Reponse Schema
+    # 3. 声明 Response Schema
     llm_with_structured_output = llm.with_structured_output(
-        output_schema=output_schema
+        output_schema, method="json_mode"
     )
 
     response: AIMessage = await llm_with_structured_output.ainvoke(
@@ -158,9 +164,9 @@ async def llm_stream_call_with_structured_output(
     # 2. 处理 User Prompt
     messages.append(HumanMessage(content=prompt))
 
-    # 3. 声明 Reponse Schema
+    # 3. 声明 Response Schema
     llm_with_structured_output = llm.with_structured_output(
-        output_schema=output_schema
+        output_schema, method="json_mode"
     )
 
     # 4. 调用 LLM 流式响应

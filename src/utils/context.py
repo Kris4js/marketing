@@ -5,8 +5,10 @@ import json
 from datetime import datetime, timezone
 from typing import Optional, Any
 from dataclasses import dataclass, asdict
+from pydantic import BaseModel
 
 from src.model import llm_call_with_structured_output, DEFAULT_MODEL
+from src.agent.prompts import CONTEXT_SELECTION_SYSTEM_PROMPT
 
 
 @dataclass
@@ -35,6 +37,20 @@ class ContextData:
     query_id: Optional[str]
     source_urls: Optional[list[str]]
     result: Any
+
+
+@dataclass
+class ToolSummary:
+    """Lightweight summary of a tool call result (keep in context during loop)"""
+
+    id: str  # Filepath pointer to full data on disk
+    tool_name: str
+    args: dict[str, Any]
+    summary: str
+
+
+class SelectedContextSchema(BaseModel):
+    context_ids: list[int]
 
 
 class ToolContextManager:
@@ -176,56 +192,106 @@ class ToolContextManager:
         args: dict[str, Any],
         result: Any,
         query_id: str,
-    ) -> str:
+    ) -> ToolSummary:
         """保存上下文并返回简要摘要字符串"""
-        filepath = self.save_context(tool_name, args, result, None, query_id)
-        return f"Tool: {tool_name}, Args: {json.dumps(args)}, Result saved at: {filepath}"
+        filepath = self.save_context(
+            tool_name, args, result, None, query_id
+        )
+        summary = self.get_tool_description(tool_name, args)
 
+        return ToolSummary(
+            id=filepath,
+            tool_name=tool_name,
+            args=args,
+            summary=summary,
+        )
 
-def example_usage_tool_context_manager():
-    """ToolContextManager 示例用法"""
-    manager = ToolContextManager()
+    def get_all_pointers(self) -> list[ContextPointer]:
+        """获取所有存储的上下文指针"""
+        return self.pointer.copy()
 
-    # 参数/查询 哈希处理示例
-    args = {"param1": "value1", "param2": 42}
-    print("Args Hash:", manager._hash_args(args))
-    query = "What is the capital of France?"
-    print("Query Hash:", manager.hash_query(query))
+    def get_pointers_for_query(
+        self, query_id: str
+    ) -> list[ContextPointer]:
+        """根据查询ID获取相关的上下文指针"""
+        return [
+            pointer
+            for pointer in self.pointer
+            if pointer.query_id == query_id
+        ]
 
-    # 生成文件名称示例
-    file_name = manager._generate_filename("web_search", args)
-    print("Generated File Name:", file_name)
-    tool_description = manager.get_tool_description(
-        "web_search",
-        {
-            "query": query,
-            "start_date": "2023-01-01",
-            "end_date": "2023-12-31",
-            "param1": "value1",
-        },
-    )
-    print("Tool Description:", tool_description)
+    def load_contexts(self, filepaths: list[str]) -> list[ContextData]:
+        """基于文件路径加载工具上下文内容"""
+        contexts: list[ContextData] = []
+        for filepath in filepaths:
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    context = ContextData(
+                        tool_name=data["tool_name"],
+                        args=data["args"],
+                        tool_description=data["tool_description"],
+                        timestamp=data["timestamp"],
+                        task_id=data.get("task_id"),
+                        query_id=data.get("query_id"),
+                        source_urls=data.get("source_urls"),
+                        result=data["result"],
+                    )
+                    contexts.append(context)
+            except FileNotFoundError:
+                # skip failed files silently
+                pass
+        return contexts
 
-    # 保存上下文示例
-    filepath = manager.save_context(
-        tool_name="web_search",
-        args={
-            "query": "What is the capital of France?",
-            "start_date": "2023-01-01",
-            "end_date": "2023-12-31",
-        },
-        result={
-            "data": "The capital of France is Paris.",
-            "source_urls": [
-                "https://en.wikipedia.org/wiki/Paris",
-                "https://www.britannica.com/place/Paris",
-            ],
-        },
-        task_id=1,
-        query_id="query_123",
-    )
-    print("Context saved at:", filepath)
+    async def select_relevant_contexts(
+        self,
+        query: str,
+        available_pointers: list[ContextPointer],
+    ) -> Any:
+        """使用LLM选择与查询最相关的工具上下文"""
+        if len(available_pointers) == 0:
+            return []
 
+        # Load all contexts from pointers
+        pointer_info = [
+            {
+                "id": i,
+                "tool_name": ptr.tool_name,
+                "tool_description": ptr.tool_description,
+                "args": ptr.args,
+            }
+            for i, ptr in enumerate(available_pointers)
+        ]
 
-if __name__ == "__main__":
-    example_usage_tool_context_manager()
+        prompt = f"""
+Original user query: "{query}"
+
+Available tool outputs:
+{json.dumps(pointer_info, ensure_ascii=False, indent=2)}
+
+Select which tool outputs are relevant for answering the query.
+Return a JSON object with a "context_ids" field containing a list of IDs (0-indexed) of the relevant outputs.
+Only select outputs that contain data directly relevant to answering the query.
+        """
+
+        try:
+            response = await llm_call_with_structured_output(
+                prompt,
+                system_prompt=CONTEXT_SELECTION_SYSTEM_PROMPT,
+                model=self.model,
+                output_schema=SelectedContextSchema,
+            )
+            print("Context selection response:", response)
+
+            selected_ids = response.context_ids
+            print("Selected context IDs:", selected_ids)
+
+            return [
+                available_pointers[i].filepath
+                for i in selected_ids
+                if 0 <= i < len(available_pointers)
+            ]
+
+        except Exception as e:
+            print("Error during context selection:", str(e))
+            return [ptr.filepath for ptr in available_pointers]
