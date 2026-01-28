@@ -11,10 +11,10 @@
 
   - [ ] [plan](src/agent/phases/plan.py): 生成一个带有依赖关系的待办事项列表，以回答用户的查询;
     - 创建一个结构化计划 TodoLists，包括 0-5 个任务，每个任务都有一个类型（`use_tools` 或 `reason`）和依赖信息.
-    - 
   
-  - [ ] []
-
-- [ ] [tool](src/tools/): 使用 DynamicStructuredTool 来实现 StructuredToolInterface
+- [ ] [tool](src/tools/): 使用 DynamicStructuredTool 来实现 StructuredTool
+    - 
 
 - [ ] [orchestrator](agent): 多阶段执行管道的中心协调器（Orchestrator），实例化并协调五个不同阶段的实现；
+
+- [x] [logger](src/utils/logger.py): 基于 loguru 的日志系统，支持开发终端输出和生产日志文件轮转和压缩。
