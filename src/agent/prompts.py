@@ -185,6 +185,34 @@ def get_plan_system_prompt() -> str:
     return PLAN_SYSTEM_PROMPT
 
 
+def build_plan_user_prompt(
+    query: str,
+    understanding: object,
+    guidanceFromReflection: Optional[str] = None,
+    format_prior_work: str = "",
+) -> str:
+    """Build user prompt for plan phase."""
+    guidance_section = (
+        f"\nGuidance from reflection:\n{guidanceFromReflection}\n"
+        if guidanceFromReflection
+        else ""
+    )
+    prior_work_section = (
+        f"\nPrevious work:\n{format_prior_work}\n" if format_prior_work else ""
+    )
+
+    return f"""Query:
+{query}
+
+Understanding:
+{understanding.intent}
+{prior_work_section}
+{guidance_section}
+
+Create a plan to answer this query.
+"""
+
+
 # ======================================================================
 # Tool Selection Prompts (for google/gemini-3-flash during execution)
 # ======================================================================
@@ -208,4 +236,224 @@ def build_tool_selection_prompt(
 
 
 Period: {', '.join(period) or 'N/A'}
+"""
+
+
+# ======================================================================
+# Execute Phase Prompt
+# ======================================================================
+
+EXECUTE_SYSTEM_PROMPT = """You are the execution component of a marketing agent.
+
+Your job is to complete reasoning tasks by analyzing data and providing insights.
+
+You will be given:
+1. The user's original query
+2. A specific task to complete
+3. Context data from previous tasks and tool executions
+
+Your task:
+- Analyze the context data thoroughly
+- Provide a comprehensive response that addresses the specific task
+- Use the data available to support your analysis
+- If data is insufficient, clearly state what additional information would be helpful
+
+Guidelines:
+- Be thorough and analytical
+- Reference specific data points when available
+- Provide actionable insights
+- Structure your response clearly with sections when appropriate
+"""
+
+
+def get_execute_system_prompt() -> str:
+    """Return system prompt of execute phase."""
+    return EXECUTE_SYSTEM_PROMPT
+
+
+def build_execute_user_prompt(
+    query: str,
+    task_description: str,
+    context_data: str,
+) -> str:
+    """Build user prompt for execute phase."""
+    return f"""Original Query:
+{query}
+
+Task:
+{task_description}
+
+Context Data:
+{context_data}
+
+Please complete this task based on the provided context data.
+"""
+
+
+# ======================================================================
+# Reflect Phase Prompt
+# ======================================================================
+
+REFLECT_SYSTEM_PROMPT = f"""You are the reflection component of a marketing agent.
+
+Current date: {get_current_time()}
+
+Your job is to evaluate whether enough information has been gathered to answer the user's query.
+
+You will be given:
+1. The user's original query
+2. The current plan with task completion status
+3. All task results obtained so far
+4. A summary of all planning iterations
+
+Your task:
+- Evaluate if the gathered information is sufficient to answer the query
+- Consider whether the results directly address the user's needs
+- Identify any gaps or missing information
+- If complete, provide clear reasoning for why it's sufficient
+- If incomplete, provide specific guidance on what additional information is needed
+
+Output format:
+- isComplete: true if sufficient information has been gathered, false otherwise
+- reason: Clear explanation of your assessment
+- guidance: If incomplete, specific guidance on what to do next (optional)
+
+Guidelines:
+- Be thorough in your evaluation
+- Consider the user's original intent
+- Don't mark as complete if there are obvious gaps
+- Provide actionable guidance when incomplete
+"""
+
+
+def get_reflect_system_prompt() -> str:
+    """Return system prompt of reflect phase."""
+    return REFLECT_SYSTEM_PROMPT
+
+
+def build_reflect_user_prompt(
+    query: str,
+    understanding: object,
+    completedPlans: list,
+    taskResults: dict,
+    iteration: int,
+) -> str:
+    """Build user prompt for reflect phase."""
+    # Format current plan with task statuses
+    current_plan = completedPlans[-1] if completedPlans else None
+    plan_summary = []
+    if current_plan:
+        for task in current_plan.tasks:
+            status_symbol = "✓" if task.status.value == "completed" else "✗"
+            plan_summary.append(
+                f"{status_symbol} {task.description} [{task.id}] - {task.status.value}"
+            )
+    plan_str = "\n".join(plan_summary) if plan_summary else "No tasks in current plan"
+
+    # Format task results
+    results_summary = []
+    for task_id, result in taskResults.items():
+        results_summary.append(f"Task {task_id}:\n{result.output}")
+    results_str = "\n\n".join(results_summary) if results_summary else "No task results yet"
+
+    # Format all completed plans
+    all_plans_summary = []
+    for idx, completed_plan in enumerate(completedPlans, start=1):
+        pass_summary = [f"Pass {idx}:"]
+        for task in completed_plan.tasks:
+            status_symbol = "✓" if task.status.value == "completed" else "✗"
+            pass_summary.append(f"  {status_symbol} {task.description} [{task.id}]")
+        all_plans_summary.append("\n".join(pass_summary))
+    all_plans_str = "\n\n".join(all_plans_summary) if all_plans_summary else "No completed plans"
+
+    return f"""Original Query:
+{query}
+
+Understanding:
+{understanding.intent}
+
+Iteration: {iteration}
+
+Current Plan:
+{plan_str}
+
+Task Results:
+{results_str}
+
+All Planning Iterations:
+{all_plans_str}
+
+Evaluate whether the gathered information is sufficient to answer the query.
+"""
+
+
+# ======================================================================
+# Answer Phase Prompt
+# ======================================================================
+
+ANSWER_SYSTEM_PROMPT = f"""You are the answer component of a marketing agent.
+
+Current date: {get_current_time()}
+
+Your job is to synthesize all gathered information into a comprehensive, well-structured answer to the user's query.
+
+You will be given:
+1. The user's original query
+2. All completed planning iterations
+3. All task results from tool executions and reasoning tasks
+
+Your task:
+- Synthesize information from all sources into a coherent answer
+- Structure your response clearly with appropriate sections
+- Highlight key findings and insights
+- Support your answer with specific data from the task results
+- Make the answer actionable and practical
+
+Guidelines:
+- Be comprehensive but concise
+- Use clear headings and bullet points when appropriate
+- Reference specific data points and findings
+- Provide actionable recommendations when relevant
+- Ensure the answer directly addresses the user's question
+- If there are limitations in the data, acknowledge them
+"""
+
+
+def get_answer_system_prompt() -> str:
+    """Return system prompt of answer phase."""
+    return ANSWER_SYSTEM_PROMPT
+
+
+def build_answer_user_prompt(
+    query: str,
+    completedPlans: list,
+    taskResults: dict,
+) -> str:
+    """Build user prompt for answer phase."""
+    # Format completed plans
+    plans_summary = []
+    for idx, plan in enumerate(completedPlans, start=1):
+        pass_summary = [f"Planning Pass {idx}:"]
+        for task in plan.tasks:
+            status_symbol = "✓" if task.status.value == "completed" else "✗"
+            pass_summary.append(f"  {status_symbol} {task.description} [{task.id}]")
+        plans_summary.append("\n".join(pass_summary))
+    plans_str = "\n\n".join(plans_summary) if plans_summary else "No completed plans"
+
+    # Format task results
+    results_summary = []
+    for task_id, result in taskResults.items():
+        results_summary.append(f"Task {task_id}:\n{result.output}")
+    results_str = "\n\n".join(results_summary) if results_summary else "No task results"
+
+    return f"""Original Query:
+{query}
+
+Completed Planning Iterations:
+{plans_str}
+
+All Task Results:
+{results_str}
+
+Based on all the information gathered above, provide a comprehensive answer to the user's query.
 """
