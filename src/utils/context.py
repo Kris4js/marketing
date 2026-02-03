@@ -8,7 +8,16 @@ from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 
 from src.model import llm_call_with_structured_output, DEFAULT_MODEL
-from src.agent.prompts import CONTEXT_SELECTION_SYSTEM_PROMPT
+
+# Context selection prompt (defined here to avoid circular imports with agent.prompts)
+CONTEXT_SELECTION_SYSTEM_PROMPT = """You are a context selection assistant.
+Your job is to identify which tool outputs are relevant for answering a user's query.
+
+Return a JSON object with a "context_ids" field containing a list of IDs (0-indexed) of relevant outputs.
+
+Return format:
+{"context_ids": [0, 2, 5]}
+"""
 
 
 @dataclass
@@ -72,9 +81,7 @@ class ToolContextManager:
 
         # 按键排序并序列化为JSON字符串
         sorted_keys = sorted(args.keys())
-        args_str = json.dumps(
-            {k: args[k] for k in sorted_keys}, separators=(",", ":")
-        )
+        args_str = json.dumps({k: args[k] for k in sorted_keys}, separators=(",", ":"))
 
         # 计算MD5哈希值并取前12位
         hash_obj = hashlib.md5(args_str.encode("utf-8"))
@@ -85,17 +92,13 @@ class ToolContextManager:
         hash_obj = hashlib.md5(query.encode("utf-8"))
         return hash_obj.hexdigest()[:12]
 
-    def _generate_filename(
-        self, tool_name: str, args: dict[str, Any]
-    ) -> str:
+    def _generate_filename(self, tool_name: str, args: dict[str, Any]) -> str:
         """根据工具名称和参数生成唯一的文件名"""
         args_hash = self._hash_args(args)
         file_name = f"{tool_name}_{args_hash}.json"
         return file_name
 
-    def get_tool_description(
-        self, tool_name: str, args: dict[str, Any]
-    ) -> str:
+    def get_tool_description(self, tool_name: str, args: dict[str, Any]) -> str:
         """生成工具的描述性字符串"""
         parts: list[str] = []
         used_keys: set[str] = set()
@@ -107,16 +110,12 @@ class ToolContextManager:
 
         # Add date range if present
         if args.get("start_date") and args.get("end_date"):
-            parts.append(
-                f"from {args.get('start_date')} to {args.get('end_date')}"
-            )
+            parts.append(f"from {args.get('start_date')} to {args.get('end_date')}")
             used_keys.update({"start_date", "end_date"})
 
         # Append any remaining args not explicitly handled
         remaining_args = [
-            f"{key}={value}"
-            for key, value in args.items()
-            if key not in used_keys
+            f"{key}={value}" for key, value in args.items() if key not in used_keys
         ]
         if len(remaining_args) > 0:
             parts.append(f"[{', '.join(remaining_args)}]")
@@ -168,9 +167,7 @@ class ToolContextManager:
 
         # Write context data to JSON file
         with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(
-                asdict(context_data), f, ensure_ascii=False, indent=2
-            )
+            json.dump(asdict(context_data), f, ensure_ascii=False, indent=2)
 
         context_pointer: ContextPointer = ContextPointer(
             filepath=filepath,
@@ -196,9 +193,7 @@ class ToolContextManager:
         query_id: str,
     ) -> ToolSummary:
         """保存上下文并返回简要摘要字符串"""
-        filepath = self.save_context(
-            tool_name, args, result, None, query_id
-        )
+        filepath = self.save_context(tool_name, args, result, None, query_id)
         summary = self.get_tool_description(tool_name, args)
 
         return ToolSummary(
@@ -212,15 +207,9 @@ class ToolContextManager:
         """获取所有存储的上下文指针"""
         return self.pointer.copy()
 
-    def get_pointers_for_query(
-        self, query_id: str
-    ) -> list[ContextPointer]:
+    def get_pointers_for_query(self, query_id: str) -> list[ContextPointer]:
         """根据查询ID获取相关的上下文指针"""
-        return [
-            pointer
-            for pointer in self.pointer
-            if pointer.query_id == query_id
-        ]
+        return [pointer for pointer in self.pointer if pointer.query_id == query_id]
 
     def load_contexts(self, filepaths: list[str]) -> list[ContextData]:
         """基于文件路径加载工具上下文内容"""

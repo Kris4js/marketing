@@ -4,9 +4,7 @@ from pathlib import Path
 from src.skills.types import Skill, SkillMetadata, SkillSource
 
 
-def parse_skill_file(
-    content: str, path: str | Path, source: SkillSource
-) -> Skill:
+def parse_skill_file(content: str, path: str | Path, source: SkillSource) -> Skill:
     """
     Parse a SKILL.md file content into a Skill object.
     Extracts YAML frontmatter (name, description) and the markdown body (instructions).
@@ -65,9 +63,7 @@ def load_skill_from_path(path: str | Path, source: SkillSource) -> Skill:
     return parse_skill_file(content, path, source)
 
 
-def extract_skill_metadata(
-    path: str | Path, source: SkillSource
-) -> SkillMetadata:
+def extract_skill_metadata(path: str | Path, source: SkillSource) -> SkillMetadata:
     """
     Extract just the metadata from a skill file without loading full instructions.
     Used for lightweight discovery at startup.
@@ -104,7 +100,3 @@ def extract_skill_metadata(
         path=path,
         source=source,
     )
-
-
-# print(load_skill_from_path( Path(__file__).parent / "dcf/SKILL.md", SkillSource.BUILTIN).model_dump_json())
-# print(extract_skill_metadata( Path(__file__).parent / "dcf/SKILL.md", SkillSource.BUILTIN).model_dump_json())

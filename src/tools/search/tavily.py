@@ -13,14 +13,13 @@ tavily_client = TavilySearch(max_results=5)
 
 
 class TavilySearchInput(BaseModel):
-    query: str = Field(
-        ..., description="The search query to look up on the web."
-    )
+    query: str = Field(..., description="The search query to look up on the web.")
+
 
 @tool(args_schema=TavilySearchInput)
 async def tavily_search(query: str) -> str:
     """Search the web for current information on any topic.
-    
+
     Args:
         query (str): The search query to look up on the web.
     """
@@ -33,4 +32,3 @@ async def tavily_search(query: str) -> str:
     ]
 
     return format_tool_result(data=parsed, source_urls=urls)
-

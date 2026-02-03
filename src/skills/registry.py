@@ -22,9 +22,7 @@ SKILL_DIRECTORIES: list[dict[str, object]] = [
 skill_metadata_cache: Optional[dict[str, SkillMetadata]] = None
 
 
-def _scan_skill_directory(
-    dir_path: Path, source: SkillSource
-) -> list[SkillMetadata]:
+def _scan_skill_directory(dir_path: Path, source: SkillSource) -> list[SkillMetadata]:
     """
     Scan a directory for SKILL.md files and return their metadata.
     Looks for directories containing SKILL.md files.
@@ -46,9 +44,7 @@ def _scan_skill_directory(
             skill_file_path = entry / "SKILL.md"
             if skill_file_path.exists():
                 try:
-                    metadata = extract_skill_metadata(
-                        str(skill_file_path), source
-                    )
+                    metadata = extract_skill_metadata(str(skill_file_path), source)
                     skills.append(metadata)
                 except Exception:
                     # Skip invalid skill files silently
@@ -100,9 +96,7 @@ def get_skill(name: str) -> Optional[Skill]:
     if skill_metadata_cache is None:
         discover_skills()
 
-    metadata = (
-        skill_metadata_cache.get(name) if skill_metadata_cache else None
-    )
+    metadata = skill_metadata_cache.get(name) if skill_metadata_cache else None
     if not metadata:
         return None
 

@@ -6,16 +6,32 @@ Supports multiple concurrent sessions with isolated browser contexts.
 """
 
 import asyncio
+
+# Global session manager singleton
+_session_manager = None
+
+
+def get_session_manager() -> "BrowserSessionManager":
+    """Get or create the global session manager singleton."""
+    global _session_manager
+    if _session_manager is None:
+        _session_manager = BrowserSessionManager(
+            options=BrowserOptions(headless=True, timeout=30000)
+        )
+    return _session_manager
+
+
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import Any, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
-from loguru import logger
 
 from src.utils.logger import get_logger
+
+# Get logger with proper name binding
+logger = get_logger(__name__)
 
 
 # ======================================================================
@@ -124,6 +140,7 @@ class BrowserSession:
                 "url": self.page.url,
                 "status": response.status if response else None,
                 "title": await self.page.title(),
+                "session_id": self.session_id,
             }
         except Exception as e:
             logger.error(f"[{self.session_id}] Navigation failed: {e}")
@@ -131,24 +148,131 @@ class BrowserSession:
                 "success": False,
                 "error": str(e),
                 "url": url,
+                "session_id": self.session_id,
             }
 
     async def snapshot(self) -> dict[str, Any]:
-        """Get accessibility snapshot of the page.
+        """Get page content for element recognition.
+
+        Returns structured elements including article/blog content.
 
         Returns:
-            Dict with page structure and accessibility info
+            Dict with page HTML content and structured elements
         """
         self.last_accessed = datetime.now()
 
         try:
-            snapshot = await self.page.accessibility.snapshot()
+            # Get page content as HTML
+            content = await self.page.content()
+
+            # Get page title
+            title = await self.page.title()
+
+            # Extract structured elements from the page
+            elements = await self.page.evaluate("""() => {
+                const result = {
+                    articles: [],
+                    links: [],
+                    headings: [],
+                    meta: {}
+                };
+
+                // Find article/post containers (common blog patterns)
+                const articleSelectors = [
+                    'article',
+                    '[class*="post"]',
+                    '[class*="entry"]',
+                    '[class*="article"]',
+                    '[class*="item"]',
+                    '[class*="card"]'
+                ];
+
+                const articles = new Set();
+                articleSelectors.forEach(selector => {
+                    document.querySelectorAll(selector).forEach(el => {
+                        const articlesInEl = el.querySelectorAll('article, [class*="post"], [class*="entry"]');
+                        if (articlesInEl.length === 0) {
+                            // This element itself is an article container
+                            articles.add(el);
+                        }
+                    });
+                });
+
+                // Extract article details
+                articles.forEach(article => {
+                    // Find title (h1, h2, h3 or class containing 'title')
+                    const titleEl = article.querySelector('h1, h2, h3, [class*="title"], [class*="heading"]');
+                    const title = titleEl ? titleEl.textContent.trim().substring(0, 200) : '';
+
+                    // Find link (usually wrapping the title or in the article)
+                    const linkEl = article.querySelector('a[href]') || article.closest('a[href]');
+                    const url = linkEl ? linkEl.href : '';
+
+                    // Find excerpt/intro (p with class containing 'excerpt', 'summary', 'intro', 'desc', or first p)
+                    let excerpt = '';
+                    const excerptEl = article.querySelector('p[class*="excerpt"], p[class*="summary"], p[class*="intro"], p[class*="desc"]') ||
+                                     article.querySelector('p');
+                    if (excerptEl) {
+                        excerpt = excerptEl.textContent.trim().substring(0, 500);
+                    }
+
+                    // Get CSS selector for this article
+                    let selector = article.tagName.toLowerCase();
+                    if (article.id) {
+                        selector += '#' + article.id;
+                    } else if (article.className) {
+                        const classes = article.className.split(' ').filter(c => c && !c.includes('post') && !c.includes('entry')).slice(0, 2);
+                        if (classes.length > 0) {
+                            selector += '.' + classes.join('.');
+                        }
+                    }
+
+                    result.articles.push({
+                        title,
+                        url,
+                        excerpt,
+                        selector
+                    });
+                });
+
+                // Get all standalone links (not in articles)
+                document.querySelectorAll('a[href]').forEach(el => {
+                    const isInArticle = el.closest('article, [class*="post"], [class*="entry"]');
+                    if (!isInArticle && el.textContent.trim()) {
+                        result.links.push({
+                            text: el.textContent.trim().substring(0, 100),
+                            href: el.href,
+                            selector: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className ? '.' + el.className.split(' ')[0] : '')
+                        });
+                    }
+                });
+
+                // Get all headings (h1-h6)
+                document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(el => {
+                    result.headings.push({
+                        tag: el.tagName,
+                        text: el.textContent.trim().substring(0, 200),
+                        selector: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')
+                    });
+                });
+
+                // Meta info
+                result.meta = {
+                    title: document.title,
+                    url: window.location.href,
+                    description: document.querySelector('meta[name="description"]')?.content || '',
+                    keywords: document.querySelector('meta[name="keywords"]')?.content || ''
+                };
+
+                return result;
+            }""")
 
             return {
                 "success": True,
-                "snapshot": snapshot,
+                "html": content,
+                "elements": elements,
                 "url": self.page.url,
-                "title": await self.page.title(),
+                "title": title,
             }
         except Exception as e:
             logger.error(f"[{self.session_id}] Snapshot failed: {e}")
@@ -433,6 +557,7 @@ class BrowserSessionManager:
 
         self._browser: Any = None
         self._sessions: dict[str, BrowserSession] = {}
+        self._current_session_id: str | None = None  # Track current session
         self._lock = asyncio.Lock()
 
         self.logger = get_logger(__name__)
@@ -510,6 +635,7 @@ class BrowserSessionManager:
             )
 
             self._sessions[session_id] = session
+            self._current_session_id = session_id  # Set as current session
             self.logger.info(f"Session created: {session_id}")
 
             return session
@@ -527,6 +653,16 @@ class BrowserSessionManager:
         if session:
             session.last_accessed = datetime.now()
         return session
+
+    async def get_current_session(self) -> BrowserSession | None:
+        """Get the current (most recently used) session.
+
+        Returns:
+            BrowserSession or None if no active session
+        """
+        if self._current_session_id:
+            return await self.get_session(self._current_session_id)
+        return None
 
     async def close_session(self, session_id: str) -> bool:
         """Close and remove a session.

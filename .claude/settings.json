@@ -1,5 +1,15 @@
 {
-  "enabledPlugins": {
-    "oh-my-claudecode@omc": true
-  }
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Write|Edit|Update.*\\.py$",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "ruff format --force"
+                    }
+                ]
+            }
+        ]
+    }
 }

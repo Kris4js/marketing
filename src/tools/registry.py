@@ -16,7 +16,24 @@ from pydantic import BaseModel, Field
 from src.skills import discover_skills
 from src.tools.search import tavily_search
 from src.tools.skill import skill_tool, SKILL_TOOL_DESCRIPTION
-from src.tools.description import WEB_SEARCH_DESCRIPTION, BROWSER_AUTOMATION_DESCRIPTION
+from src.tools.description import (
+    WEB_SEARCH_DESCRIPTION,
+    BROWSER_AUTOMATION_DESCRIPTION,
+    FILE_READ_DESCRIPTION,
+    FILE_WRITE_DESCRIPTION,
+    FILE_EDIT_DESCRIPTION,
+    EXEC_DESCRIPTION,
+    LIST_DESCRIPTION,
+    GREP_DESCRIPTION,
+)
+from src.tools.buildin import (
+    read_tool,
+    write_tool,
+    edit_tool,
+    exec_tool,
+    list_tool,
+    grep_tool,
+)
 
 
 class RegisteredTool(BaseModel):
@@ -25,9 +42,7 @@ class RegisteredTool(BaseModel):
     name: str = Field(
         ..., description="Tool name (must match the tool's name property)"
     )
-    tool: Any = Field(
-        ..., description="The actual tool instance (StructuredTool)"
-    )
+    tool: Any = Field(..., description="The actual tool instance (StructuredTool)")
     description: str = Field(
         ...,
         description="Rich description for system prompt (includes when to use, when not to use, etc.)",
@@ -46,6 +61,44 @@ def get_tool_registry(model: str) -> list[RegisteredTool]:
         Array of registered tools
     """
     tools: list[RegisteredTool] = []
+
+    # ============== Built-in Tools (always available) ==============
+    tools.extend(
+        [
+            RegisteredTool(
+                name="read_tool",
+                tool=read_tool,
+                description=FILE_READ_DESCRIPTION,
+            ),
+            RegisteredTool(
+                name="write_tool",
+                tool=write_tool,
+                description=FILE_WRITE_DESCRIPTION,
+            ),
+            RegisteredTool(
+                name="edit_tool",
+                tool=edit_tool,
+                description=FILE_EDIT_DESCRIPTION,
+            ),
+            RegisteredTool(
+                name="exec_tool",
+                tool=exec_tool,
+                description=EXEC_DESCRIPTION,
+            ),
+            RegisteredTool(
+                name="list_tool",
+                tool=list_tool,
+                description=LIST_DESCRIPTION,
+            ),
+            RegisteredTool(
+                name="grep_tool",
+                tool=grep_tool,
+                description=GREP_DESCRIPTION,
+            ),
+        ]
+    )
+
+    # ============== Optional Tools ==============
 
     # Include web_search if Exa or Tavily API key is configured (Exa preferred)
     if os.getenv("TAVILY_API_KEY"):
@@ -113,6 +166,5 @@ def build_tool_descriptions(model: str) -> str:
         Formatted string with all tool descriptions
     """
     return "\n\n".join(
-        f"### {t.name}\n\n{t.description}"
-        for t in get_tool_registry(model)
+        f"### {t.name}\n\n{t.description}" for t in get_tool_registry(model)
     )

@@ -15,18 +15,14 @@ from pydantic import BaseModel, Field
 
 
 class ToolResult(BaseModel):
-    data: Any = Field(
-        ..., description="The result data from the tool execution."
-    )
+    data: Any = Field(..., description="The result data from the tool execution.")
     source_urls: Optional[list[str]] = Field(
         None,
         description="Optional list of source URLs related to the result.",
     )
 
 
-def format_tool_result(
-    data: Any, source_urls: Optional[list[str]] = None
-) -> str:
+def format_tool_result(data: Any, source_urls: Optional[list[str]] = None) -> str:
     """Format tool result as JSON string."""
     result: ToolResult = ToolResult(data=data, source_urls=source_urls)
     return result.model_dump_json()

@@ -41,9 +41,7 @@ Execute a skill to get specialized instructions for complex tasks.
 class SkillToolInput(BaseModel):
     """Input schema for the skill tool."""
 
-    skill: str = Field(
-        ..., description='Name of the skill to invoke (e.g., "dcf")'
-    )
+    skill: str = Field(..., description='Name of the skill to invoke (e.g., "dcf")')
     args: Optional[str] = Field(
         None,
         description="Optional arguments for the skill (e.g., ticker symbol)",
@@ -66,7 +64,9 @@ def skill_tool(skill: str, args: Optional[str] = None) -> str:
 
     if not skill_def:
         available = ", ".join(s.name for s in discover_skills())
-        return f'Error: Skill "{skill}" not found. Available skills: {available or "none"}'
+        return (
+            f'Error: Skill "{skill}" not found. Available skills: {available or "none"}'
+        )
 
     # Return instructions with optional args context
     result = f"## Skill: {skill_def.name}\n\n"

@@ -12,21 +12,17 @@ class SkillSource(Enum):
     """
 
     BUILTIN = "builtin"
-    USER    = "user"
+    USER = "user"
     PROJECT = "project"
 
 
 class SkillMetadata(BaseModel):
     name: str = Field(..., description="The name of the skill.")
-    description: str = Field(
-        ..., description="A brief description of the skill."
-    )
+    description: str = Field(..., description="A brief description of the skill.")
     path: str | Path = Field(
         ..., description="The file absolute path to the SKILL.md file."
     )
-    source: SkillSource = Field(
-        ..., description="The source of the skill definition."
-    )
+    source: SkillSource = Field(..., description="The source of the skill definition.")
 
 
 class Skill(SkillMetadata):

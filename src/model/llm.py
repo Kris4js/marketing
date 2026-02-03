@@ -73,7 +73,7 @@ async def llm_call(
     # 5. 返回带工具调用的完整响应
     if tools is not None:
         return response
-    
+
     return response
 
 
@@ -108,9 +108,7 @@ async def llm_call_with_structured_output(
         output_schema, method="json_mode"
     )
 
-    response: AIMessage = await llm_with_structured_output.ainvoke(
-        messages
-    )
+    response: AIMessage = await llm_with_structured_output.ainvoke(messages)
 
     return response
 
@@ -142,7 +140,7 @@ async def llm_stream_call(
     # 3. 调用 LLM 流式响应
     async for chunk in llm.astream(messages):
         # Extract content from the chunk
-        if hasattr(chunk, 'content') and chunk.content:
+        if hasattr(chunk, "content") and chunk.content:
             yield chunk.content
         # Skip empty chunks (metadata only)
 

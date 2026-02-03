@@ -3,7 +3,7 @@ from src.model.llm import (
     llm_call_with_structured_output,
     llm_stream_call,
     llm_stream_call_with_structured_output,
-    DEFAULT_MODEL
+    DEFAULT_MODEL,
 )
 
 __all__ = [

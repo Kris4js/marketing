@@ -1,39 +1,31 @@
 """
-Browser automation tools for web interaction.
+Browser automation tools.
 
-This package provides tools for browser automation including:
-- Navigation and page interaction
-- Form filling and submission
-- Element clicking and text input
-- Session management for authentication flows
-- Screenshot and snapshot capabilities
-
-Uses Playwright for local browser automation.
-
-Usage:
-    from src.tools.browser import get_browser_tools
-
-    tools = get_browser_tools()
-    agent = Agent(options=AgentOptions(extra_tools=tools))
+Tools:
+- browser_navigate: Navigate to a URL
+- browser_snapshot: Capture page structure
+- browser_get_content: Extract content from elements
 """
 
+from src.tools.browser.navigate import browser_navigate
+from src.tools.browser.snapshot import browser_snapshot
+from src.tools.browser.content import browser_get_content
 from src.tools.browser.session import BrowserSessionManager
-from src.tools.browser.playwright import get_playwright_tools
+
+
+def get_browser_tools() -> list:
+    """Get all browser tools."""
+    return [
+        browser_navigate,
+        browser_snapshot,
+        browser_get_content,
+    ]
+
 
 __all__ = [
-    "BrowserSessionManager",
+    "browser_navigate",
+    "browser_snapshot",
+    "browser_get_content",
     "get_browser_tools",
+    "BrowserSessionManager",
 ]
-
-
-def get_browser_tools():
-    """
-    Get browser automation tools.
-
-    Returns:
-        List of LangChain StructuredTool instances
-
-    Examples:
-        >>> tools = get_browser_tools()
-    """
-    return get_playwright_tools()

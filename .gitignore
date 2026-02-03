@@ -1,5 +1,8 @@
 # Caches
 .market/*
+.articles
+.mini-agent
+tmp
 
 # Python-generated files
 __pycache__/
